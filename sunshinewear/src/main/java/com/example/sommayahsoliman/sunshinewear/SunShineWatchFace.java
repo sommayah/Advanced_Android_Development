@@ -31,12 +31,12 @@ import android.os.Handler;
 import android.os.Message;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
-import android.text.format.DateFormat;
 import android.text.format.Time;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
 import java.lang.ref.WeakReference;
+import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -92,6 +92,7 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
         final Handler mUpdateTimeHandler = new EngineHandler(this);
         boolean mRegisteredTimeZoneReceiver = false;
         Paint mBackgroundPaint;
+        Paint mLinePaint;
         Paint mTextPaint;
         Paint mDatePaint;
         Paint mDividerPaint;
@@ -141,6 +142,11 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
             mBackgroundPaint = new Paint();
             mBackgroundPaint.setColor(resources.getColor(R.color.background));
 
+            mLinePaint = new Paint();
+            mLinePaint.setColor(resources.getColor(R.color.line_color));
+            mLinePaint.setTextAlign(Paint.Align.CENTER);
+
+
             mTextPaint = new Paint();
             mTextPaint = createTextPaint(resources.getColor(R.color.digital_text));
             mDatePaint = createTextPaint(resources.getColor(R.color.digital_text));
@@ -172,7 +178,8 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
         private void initFormats() {
             mDayOfWeekFormat = new SimpleDateFormat("EEE", Locale.getDefault());
             mDayOfWeekFormat.setCalendar(mCalendar);
-            mDateFormat = DateFormat.getDateFormat(SunShineWatchFace.this);
+            //mDateFormat = DateFormat.getDateFormat(SunShineWatchFace.this);
+            mDateFormat = DateFormat.getDateInstance();
             mDateFormat.setCalendar(mCalendar);
         }
 
@@ -231,7 +238,9 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
                     ? R.dimen.digital_temp_text_size_round : R.dimen.digital_temp_text_size);
 
             mTextPaint.setTextSize(textSize);
+            mTextPaint.setTextAlign(Paint.Align.CENTER);
             mDatePaint.setTextSize(dateTextSize);
+            mDatePaint.setTextAlign(Paint.Align.CENTER);
             mHighPaint.setTextSize(tempTextSize);
             mLowPaint.setTextSize(tempTextSize);
         }
@@ -306,17 +315,21 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
             mCalendar.setTimeInMillis(now);
             mDate.setTime(now);
             mTime.setToNow();
+
             String text = mAmbient
                     ? String.format("%d:%02d", mTime.hour, mTime.minute)
                     : String.format("%d:%02d", mTime.hour, mTime.minute/*, mTime.second*/);
-            canvas.drawText(text, mXOffset, mYOffset, mTextPaint);
+            canvas.drawText(text, bounds.width()/2, mYOffset, mTextPaint);
             // Only render the day of week and date if there is no peek card, so they do not bleed
             // into each other in ambient mode.
             if (getPeekCardPosition().isEmpty()) {
                 // Date
                 canvas.drawText(
-                        mDayOfWeekFormat.format(mDate)+", "+mDateFormat.format(mDate),
-                        mXOffset, mYOffset + mLineHeight, mDatePaint);
+                        mDayOfWeekFormat.format(mDate) + ", " + mDateFormat.format(mDate),
+                        bounds.width()/2, mYOffset + mLineHeight, mDatePaint);
+                canvas.drawLine(bounds.width()* 3/8, mYOffset + 2* mLineHeight,
+                        bounds.width() *5/8, mYOffset + 2* mLineHeight,mLinePaint);
+
 
             }
         }
