@@ -67,6 +67,12 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mLocation = Utility.getPreferredLocation(this);
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .addApi(Wearable.API)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .build();
+        mGoogleApiClient.connect();
         Uri contentUri = getIntent() != null ? getIntent().getData() : null;
 
         setContentView(R.layout.activity_main);
@@ -124,16 +130,11 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
                 startService(intent);
             }
         }
-        mGoogleApiClient = new GoogleApiClient.Builder(this)
-                .addApi(Wearable.API)
-                .addConnectionCallbacks(this)
-                .addOnConnectionFailedListener(this)
-                .build();
-        Bitmap mImageBitmap = BitmapFactory.decodeResource(getResources(),R.drawable.art_clear);
-        if (null != mImageBitmap && mGoogleApiClient.isConnected()) {
-            sendPhoto(toAsset(mImageBitmap));
-        }
+
+
     }
+
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -174,6 +175,7 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
             }
             mLocation = location;
         }
+
     }
 
     @Override
@@ -226,6 +228,10 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
 
     @Override
     public void onConnected(Bundle bundle) {
+        Bitmap mImageBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.art_clear);
+        if (null != mImageBitmap && mGoogleApiClient.isConnected()) {
+            sendPhoto(toAsset(mImageBitmap));
+        }
 
     }
 

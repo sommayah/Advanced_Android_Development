@@ -33,6 +33,10 @@
 
                 <category android:name="com.google.android.wearable.watchface.category.WATCH_FACE" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="com.example.sommayahsoliman.sunshinewear.EXAMPLE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
         </service>
 
         <service
