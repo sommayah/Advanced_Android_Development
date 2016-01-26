@@ -331,6 +331,7 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
                         bounds.width() *5/8, mYOffset + 2* mLineHeight,mLinePaint);
 
 
+
             }
         }
 
