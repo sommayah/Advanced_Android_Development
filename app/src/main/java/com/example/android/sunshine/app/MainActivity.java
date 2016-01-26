@@ -16,6 +16,7 @@
 package com.example.android.sunshine.app;
 
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -41,6 +42,9 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.wearable.Asset;
 import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.MessageApi;
+import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
@@ -48,15 +52,25 @@ import com.google.android.gms.wearable.Wearable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Date;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 
 public class MainActivity extends AppCompatActivity implements ForecastFragment.Callback, GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener {
+        GoogleApiClient.OnConnectionFailedListener, DataApi.DataListener, MessageApi.MessageListener {
 
     private final String LOG_TAG = MainActivity.class.getSimpleName();
     private static final String DETAILFRAGMENT_TAG = "DFTAG";
     private final static int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
     public static final String SENT_TOKEN_TO_SERVER = "sentTokenToServer";
     public GoogleApiClient mGoogleApiClient;
+
+    private static final int REQUEST_RESOLVE_ERROR = 1000;
+    private boolean mResolvingError = false;
+    // Send DataItems.
+    private ScheduledExecutorService mGeneratorExecutor;
+    private ScheduledFuture<?> mDataItemGeneratorFuture;
+
+
 
     private static final String IMAGE_PATH = "/image";
     private static final String IMAGE_KEY = "photo";
@@ -72,7 +86,6 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .build();
-        mGoogleApiClient.connect();
         Uri contentUri = getIntent() != null ? getIntent().getData() : null;
 
         setContentView(R.layout.activity_main);
@@ -134,6 +147,31 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
 
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (!mResolvingError) {
+            mGoogleApiClient.connect();
+        }
+    }
+
+
+    @Override
+    public void onPause() {
+        super.onPause();
+
+    }
+
+    @Override
+    protected void onStop() {
+        if (!mResolvingError) {
+            Wearable.DataApi.removeListener(mGoogleApiClient, this);
+            Wearable.MessageApi.removeListener(mGoogleApiClient, this);
+            mGoogleApiClient.disconnect();
+        }
+        super.onStop();
+    }
+
 
 
     @Override
@@ -175,6 +213,7 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
             }
             mLocation = location;
         }
+
 
     }
 
@@ -228,6 +267,9 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
 
     @Override
     public void onConnected(Bundle bundle) {
+        mResolvingError = false;
+        Wearable.DataApi.addListener(mGoogleApiClient, this);
+        Wearable.MessageApi.addListener(mGoogleApiClient, this);
         Bitmap mImageBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.art_clear);
         if (null != mImageBitmap && mGoogleApiClient.isConnected()) {
             sendPhoto(toAsset(mImageBitmap));
@@ -241,8 +283,25 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
     }
 
     @Override
-    public void onConnectionFailed(ConnectionResult connectionResult) {
+    public void onConnectionFailed(ConnectionResult result) {
 
+        if (mResolvingError) {
+            // Already attempting to resolve an error.
+            return;
+        } else if (result.hasResolution()) {
+            try {
+                mResolvingError = true;
+                result.startResolutionForResult(this, REQUEST_RESOLVE_ERROR);
+            } catch (IntentSender.SendIntentException e) {
+                // There was an error with the resolution intent. Try again.
+                mGoogleApiClient.connect();
+            }
+        } else {
+            Log.e(LOG_TAG, "Connection to Google API client has failed");
+            mResolvingError = false;
+            Wearable.DataApi.removeListener(mGoogleApiClient, this);
+            Wearable.MessageApi.removeListener(mGoogleApiClient, this);
+        }
     }
 
 
@@ -287,4 +346,22 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
     }
 
 
+    @Override
+    public void onDataChanged(DataEventBuffer dataEventBuffer) {
+
+    }
+
+    @Override
+    public void onMessageReceived(MessageEvent messageEvent) {
+
+    }
+
+    /**
+     * As simple wrapper around Log.d
+     */
+    private static void LOGD(final String tag, String message) {
+        if (Log.isLoggable(tag, Log.DEBUG)) {
+            Log.d(tag, message);
+        }
+    }
 }

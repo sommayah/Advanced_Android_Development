@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.sommayahsoliman.sunshinewear">
+    package="com.example.android.sunshine">
 
     <uses-feature android:name="android.hardware.type.watch" />
 
@@ -15,7 +15,7 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault">
         <service
-            android:name=".SunShineWatchFace"
+            android:name=".app.SunShineWatchFace"
             android:label="@string/my_digital_name"
             android:permission="android.permission.BIND_WALLPAPER">
             <meta-data
@@ -34,13 +34,13 @@
                 <category android:name="com.google.android.wearable.watchface.category.WATCH_FACE" />
             </intent-filter>
             <intent-filter>
-                <action android:name="com.example.sommayahsoliman.sunshinewear.EXAMPLE"/>
+                <action android:name="com.example.android.sunshine.app.EXAMPLE"/>
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </service>
 
         <service
-            android:name=".WearListenerService"
+            android:name=".app.WearListenerService"
             android:enabled="true"
             android:exported="true">
             <intent-filter>

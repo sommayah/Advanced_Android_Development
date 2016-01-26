@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.example.sommayahsoliman.sunshinewear;
+package com.example.android.sunshine.app;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -39,6 +39,7 @@ import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
+import com.example.android.sunshine.R;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.wearable.Asset;
@@ -48,8 +49,6 @@ import com.google.android.gms.wearable.DataEventBuffer;
 import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.MessageApi;
 import com.google.android.gms.wearable.MessageEvent;
-import com.google.android.gms.wearable.Node;
-import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.Wearable;
 
 import java.io.InputStream;
@@ -67,8 +66,7 @@ import java.util.concurrent.TimeUnit;
  * low-bit ambient mode, the text is drawn without anti-aliasing in ambient mode.
  */
 public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener, DataApi.DataListener, MessageApi.MessageListener,
-        NodeApi.NodeListener  {
+        GoogleApiClient.OnConnectionFailedListener, DataApi.DataListener, MessageApi.MessageListener{
     private static final String TAG = "SunShineWatchFace";
     private GoogleApiClient mGoogleApiClient;
     private static final Typeface NORMAL_TYPEFACE =
@@ -88,18 +86,16 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
 
     @Override
     public Engine onCreateEngine() {
-        mGoogleApiClient = new GoogleApiClient.Builder(SunShineWatchFace.this)
-                .addApi(Wearable.API)
-                .addConnectionCallbacks(SunShineWatchFace.this)
-                .addOnConnectionFailedListener(this)
-                .build();
-        mGoogleApiClient.connect();
+
         return new Engine();
     }
 
     @Override
     public void onConnected(Bundle bundle) {
 
+        Log.d(TAG,"connection success");
+        Wearable.DataApi.addListener(mGoogleApiClient, this);
+        Wearable.MessageApi.addListener(mGoogleApiClient, this);
     }
 
     @Override
@@ -112,19 +108,12 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
 
     }
 
-    @Override
-    public void onPeerConnected(Node node) {
 
-    }
-
-    @Override
-    public void onPeerDisconnected(Node node) {
-
-    }
 
     @Override
     public void onConnectionFailed(ConnectionResult connectionResult) {
 
+        Log.d(TAG, "connection failure");
     }
 
     private static class EngineHandler extends Handler {
@@ -198,6 +187,13 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
                     .setAcceptsTapEvents(true)
                     .build());
 
+            mGoogleApiClient = new GoogleApiClient.Builder(SunShineWatchFace.this)
+                    .addApi(Wearable.API)
+                    .addConnectionCallbacks(SunShineWatchFace.this)
+                    .addOnConnectionFailedListener(SunShineWatchFace.this)
+                    .build();
+            mGoogleApiClient.connect();
+
 
             Resources resources = SunShineWatchFace.this.getResources();
             mYOffset = resources.getDimension(R.dimen.digital_y_offset);
@@ -226,7 +222,6 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
             initFormats();
 
 
-            mGoogleApiClient.disconnect();
         }
 
 
@@ -235,7 +230,6 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
             mUpdateTimeHandler.removeMessages(MSG_UPDATE_TIME);
             Wearable.DataApi.removeListener(mGoogleApiClient, SunShineWatchFace.this);
             Wearable.MessageApi.removeListener(mGoogleApiClient,SunShineWatchFace.this);
-            Wearable.NodeApi.removeListener(mGoogleApiClient, SunShineWatchFace.this);
             mGoogleApiClient.disconnect();
             super.onDestroy();
         }
@@ -402,10 +396,10 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
                 // Date
                 canvas.drawText(
                         mDayOfWeekFormat.format(mDate) + ", " + mDateFormat.format(mDate),
-                        bounds.width()/2, mYOffset + mLineHeight, mDatePaint);
+                        bounds.width() / 2, mYOffset + mLineHeight, mDatePaint);
                 canvas.drawLine(bounds.width() * 3 / 8, mYOffset + 2 * mLineHeight,
                         bounds.width() * 5 / 8, mYOffset + 2 * mLineHeight, mLinePaint);
-             //   canvas.drawBitmap(mIconBitmap,bounds.width()*3/8, mYOffset + 3 * mLineHeight, mIconPaint);
+            //    canvas.drawBitmap(mIconBitmap,bounds.width()*3/8, mYOffset + 3 * mLineHeight, mIconPaint);
 
 
 
@@ -504,7 +498,7 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
         protected void onPostExecute(Bitmap bitmap) {
 
             if(bitmap != null) {
-                Log.d(TAG, "Setting background image on second page..");
+                Log.d(TAG, "Setting icon image");
               //  mAssetFragment.setBackgroundImage(bitmap);
                 mIconBitmap = Bitmap.createBitmap(bitmap);
             }

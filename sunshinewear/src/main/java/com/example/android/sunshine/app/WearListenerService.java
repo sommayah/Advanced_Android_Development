@@ -1,4 +1,4 @@
-package com.example.sommayahsoliman.sunshinewear;
+package com.example.android.sunshine.app;
 
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -25,7 +25,7 @@ public class WearListenerService extends WearableListenerService {
     }
 
 
-    private static final String TAG = "DataLayerListenerServic";
+    private static final String TAG = "ListenerService";
 
     private static final String START_ACTIVITY_PATH = "/start-activity";
     private static final String DATA_ITEM_RECEIVED_PATH = "/data-item-received";
@@ -50,7 +50,7 @@ public class WearListenerService extends WearableListenerService {
             ConnectionResult connectionResult = mGoogleApiClient
                     .blockingConnect(30, TimeUnit.SECONDS);
             if (!connectionResult.isSuccess()) {
-                Log.e(TAG, "DataLayerListenerService failed to connect to GoogleApiClient, "
+                Log.e(TAG, "WearListenerService failed to connect to GoogleApiClient, "
                         + "error code: " + connectionResult.getErrorCode());
                 return;
             }
