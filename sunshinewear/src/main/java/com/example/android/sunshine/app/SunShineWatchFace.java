@@ -22,36 +22,22 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
 import android.text.format.Time;
-import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
 import com.example.android.sunshine.R;
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.wearable.Asset;
-import com.google.android.gms.wearable.DataApi;
-import com.google.android.gms.wearable.DataEvent;
-import com.google.android.gms.wearable.DataEventBuffer;
-import com.google.android.gms.wearable.DataMapItem;
-import com.google.android.gms.wearable.MessageApi;
-import com.google.android.gms.wearable.MessageEvent;
-import com.google.android.gms.wearable.Wearable;
 
-import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -65,10 +51,9 @@ import java.util.concurrent.TimeUnit;
  * Digital watch face with seconds. In ambient mode, the seconds aren't displayed. On devices with
  * low-bit ambient mode, the text is drawn without anti-aliasing in ambient mode.
  */
-public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener, DataApi.DataListener, MessageApi.MessageListener{
+public class SunShineWatchFace extends CanvasWatchFaceService {
     private static final String TAG = "SunShineWatchFace";
-    private GoogleApiClient mGoogleApiClient;
+
     private static final Typeface NORMAL_TYPEFACE =
             Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL);
     public Bitmap mIconBitmap;
@@ -90,31 +75,10 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
         return new Engine();
     }
 
-    @Override
-    public void onConnected(Bundle bundle) {
-
-        Log.d(TAG,"connection success");
-        Wearable.DataApi.addListener(mGoogleApiClient, this);
-        Wearable.MessageApi.addListener(mGoogleApiClient, this);
-    }
-
-    @Override
-    public void onConnectionSuspended(int i) {
-
-    }
-
-    @Override
-    public void onMessageReceived(MessageEvent messageEvent) {
-
-    }
 
 
 
-    @Override
-    public void onConnectionFailed(ConnectionResult connectionResult) {
 
-        Log.d(TAG, "connection failure");
-    }
 
     private static class EngineHandler extends Handler {
         private final WeakReference<SunShineWatchFace.Engine> mWeakReference;
@@ -169,6 +133,7 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
         float mXOffset;
         float mYOffset;
 
+
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
          * disable anti-aliasing in ambient mode.
@@ -186,13 +151,6 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
                     .setShowSystemUiTime(false)
                     .setAcceptsTapEvents(true)
                     .build());
-
-            mGoogleApiClient = new GoogleApiClient.Builder(SunShineWatchFace.this)
-                    .addApi(Wearable.API)
-                    .addConnectionCallbacks(SunShineWatchFace.this)
-                    .addOnConnectionFailedListener(SunShineWatchFace.this)
-                    .build();
-            mGoogleApiClient.connect();
 
 
             Resources resources = SunShineWatchFace.this.getResources();
@@ -228,9 +186,6 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
         @Override
         public void onDestroy() {
             mUpdateTimeHandler.removeMessages(MSG_UPDATE_TIME);
-            Wearable.DataApi.removeListener(mGoogleApiClient, SunShineWatchFace.this);
-            Wearable.MessageApi.removeListener(mGoogleApiClient,SunShineWatchFace.this);
-            mGoogleApiClient.disconnect();
             super.onDestroy();
         }
 
@@ -259,6 +214,7 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
 
                 registerReceiver();
 
+
                 // Update time zone in case it changed while we weren't visible.
                 mCalendar.setTimeZone(TimeZone.getDefault());
                 initFormats();
@@ -266,6 +222,7 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
                 mTime.setToNow();
             } else {
                 unregisterReceiver();
+
 
             }
 
@@ -439,69 +396,11 @@ public class SunShineWatchFace extends CanvasWatchFaceService implements GoogleA
         }
 
 
+
+
+
+
     }
 
-    @Override
-    public void onDataChanged(DataEventBuffer dataEvents) {
-        Log.d(TAG, "onDataChanged(): " + dataEvents);
 
-        for (DataEvent event : dataEvents) {
-            if (event.getType() == DataEvent.TYPE_CHANGED) {
-                String path = event.getDataItem().getUri().getPath();
-                if (WearListenerService.IMAGE_PATH.equals(path)) {
-                    DataMapItem dataMapItem = DataMapItem.fromDataItem(event.getDataItem());
-                    Asset photoAsset = dataMapItem.getDataMap()
-                            .getAsset(WearListenerService.IMAGE_KEY);
-                    // Loads image on background thread.
-                    new LoadBitmapAsyncTask().execute(photoAsset);
-
-                } else if (WearListenerService.COUNT_PATH.equals(path)) {
-                    Log.d(TAG, "Data Changed for COUNT_PATH");
-                    Log.d("DataItem Changed", event.getDataItem().toString());
-                } else {
-                    Log.d(TAG, "Unrecognized path: " + path);
-                }
-
-            } else if (event.getType() == DataEvent.TYPE_DELETED) {
-                Log.d("DataItem Deleted", event.getDataItem().toString());
-            } else {
-                Log.d("Unknown data event type", "Type = " + event.getType());
-            }
-        }
-    }
-
-    private class LoadBitmapAsyncTask extends AsyncTask<Asset, Void, Bitmap> {
-
-        @Override
-        protected Bitmap doInBackground(Asset... params) {
-
-            if(params.length > 0) {
-
-                Asset asset = params[0];
-
-                InputStream assetInputStream = Wearable.DataApi.getFdForAsset(
-                        mGoogleApiClient, asset).await().getInputStream();
-
-                if (assetInputStream == null) {
-                    Log.w(TAG, "Requested an unknown Asset.");
-                    return null;
-                }
-                return BitmapFactory.decodeStream(assetInputStream);
-
-            } else {
-                Log.e(TAG, "Asset must be non-null");
-                return null;
-            }
-        }
-
-        @Override
-        protected void onPostExecute(Bitmap bitmap) {
-
-            if(bitmap != null) {
-                Log.d(TAG, "Setting icon image");
-              //  mAssetFragment.setBackgroundImage(bitmap);
-                mIconBitmap = Bitmap.createBitmap(bitmap);
-            }
-        }
-    }
 }
