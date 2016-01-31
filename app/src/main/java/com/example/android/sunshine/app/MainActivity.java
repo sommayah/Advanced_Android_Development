@@ -334,9 +334,11 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
     private void sendPhoto(Asset asset) {
         PutDataMapRequest dataMap = PutDataMapRequest.create(IMAGE_PATH);
         dataMap.getDataMap().putAsset(IMAGE_KEY, asset);
+        String high = "20";
+        String low = "10";
+        dataMap.getDataMap().putString(HIGH_KEY, high);
+        dataMap.getDataMap().putString(LOW_KEY, low);
         dataMap.getDataMap().putLong("time", new Date().getTime());
-        dataMap.getDataMap().putString(HIGH_KEY,"20");
-        dataMap.getDataMap().putString(LOW_KEY,"10");
         PutDataRequest request = dataMap.asPutDataRequest();
         request.setUrgent();
 

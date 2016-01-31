@@ -142,8 +142,8 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
         Date mDate;
         Calendar mCalendar;
         float mLineHeight;
-        String high_temp = "1";
-        String low_temp = "2";
+        String high_temp = "";
+        String low_temp = "";
 
         SimpleDateFormat mDayOfWeekFormat;
         java.text.DateFormat mDateFormat;
@@ -437,8 +437,10 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
                     canvas.drawBitmap(mIconBitmap, bounds.width() * 1 / 8, mYOffset + 2 * mLineHeight, mIconPaint);
                     //canvas.drawBitmap(mIconBitmap,0, mYOffset + 2 * mLineHeight, mIconPaint);
                 }
-               // canvas.drawText(high_temp,bounds.width() *6/8,mYOffset + 3 * mLineHeight, mHighPaint);
-               // canvas.drawText(low_temp, bounds.width() * 7 / 8, mYOffset + 3 * mLineHeight, mLowPaint);
+                if(high_temp != null && low_temp != null) {
+                    canvas.drawText(high_temp, bounds.width() * 4 / 8, mYOffset + 3 * mLineHeight, mHighPaint);
+                    canvas.drawText(low_temp, bounds.width() * 6 / 8, mYOffset + 3 * mLineHeight, mLowPaint);
+                }
 
 
 
@@ -518,12 +520,13 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
                         DataMapItem dataMapItem = DataMapItem.fromDataItem(event.getDataItem());
                         Asset photoAsset = dataMapItem.getDataMap()
                                 .getAsset(WearListenerService.IMAGE_KEY);
-                        // Loads image on background thread.
-                        new LoadBitmapAsyncTask().execute(photoAsset);
                         high_temp = dataMapItem.getDataMap()
                                 .getString(HIGH_KEY);
                         low_temp = dataMapItem.getDataMap()
                                 .getString(LOW_KEY);
+                        // Loads image on background thread.
+                        new LoadBitmapAsyncTask().execute(photoAsset);
+
 
                     } else if (WearListenerService.COUNT_PATH.equals(path)) {
                         Log.d(TAG, "Data Changed for COUNT_PATH");
