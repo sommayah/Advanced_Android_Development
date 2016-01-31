@@ -64,6 +64,8 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
     public static final String SENT_TOKEN_TO_SERVER = "sentTokenToServer";
     public GoogleApiClient mGoogleApiClient;
 
+
+
     private static final int REQUEST_RESOLVE_ERROR = 1000;
     private boolean mResolvingError = false;
     // Send DataItems.
@@ -74,6 +76,8 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
 
     private static final String IMAGE_PATH = "/image";
     private static final String IMAGE_KEY = "photo";
+    private static final String HIGH_KEY = "high";
+    private static final String LOW_KEY = "low";
     private boolean mTwoPane;
     private String mLocation;
 
@@ -331,6 +335,8 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
         PutDataMapRequest dataMap = PutDataMapRequest.create(IMAGE_PATH);
         dataMap.getDataMap().putAsset(IMAGE_KEY, asset);
         dataMap.getDataMap().putLong("time", new Date().getTime());
+        dataMap.getDataMap().putString(HIGH_KEY,"20");
+        dataMap.getDataMap().putString(LOW_KEY,"10");
         PutDataRequest request = dataMap.asPutDataRequest();
         request.setUrgent();
 

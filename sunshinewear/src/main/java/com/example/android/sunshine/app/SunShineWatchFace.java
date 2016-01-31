@@ -22,27 +22,45 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
 import android.text.format.Time;
+import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
 import com.example.android.sunshine.R;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.wearable.Asset;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEvent;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataMapItem;
+import com.google.android.gms.wearable.Node;
+import com.google.android.gms.wearable.NodeApi;
+import com.google.android.gms.wearable.Wearable;
 
+import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
@@ -53,6 +71,11 @@ import java.util.concurrent.TimeUnit;
  */
 public class SunShineWatchFace extends CanvasWatchFaceService {
     private static final String TAG = "SunShineWatchFace";
+    public static final String IMAGE_PATH = "/image";
+    public static final String IMAGE_KEY = "photo";
+    private static final String HIGH_KEY = "high";
+    private static final String LOW_KEY = "low";
+    public static final String ACTION_RECEIVE = "com.example.android.sunshine.app.DATA";
 
     private static final Typeface NORMAL_TYPEFACE =
             Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL);
@@ -101,9 +124,11 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
     }
 
 
-    private class Engine extends CanvasWatchFaceService.Engine {
+    private class Engine extends CanvasWatchFaceService.Engine implements DataApi.DataListener,
+            GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener{
         final Handler mUpdateTimeHandler = new EngineHandler(this);
         boolean mRegisteredTimeZoneReceiver = false;
+        boolean mRegisteredDataReceiver = false;
         Paint mBackgroundPaint;
         Paint mLinePaint;
         Paint mTextPaint;
@@ -117,9 +142,13 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
         Date mDate;
         Calendar mCalendar;
         float mLineHeight;
+        String high_temp = "1";
+        String low_temp = "2";
 
         SimpleDateFormat mDayOfWeekFormat;
         java.text.DateFormat mDateFormat;
+
+
 
         final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
             @Override
@@ -128,10 +157,21 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
                 mTime.setToNow();
             }
         };
+
+        final BroadcastReceiver mDataReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                //get data here
+                Log.d(TAG, intent.getStringExtra("testing"));
+                Log.d(TAG, "in on receive");
+
+            }
+        };
         int mTapCount;
 
         float mXOffset;
         float mYOffset;
+        GoogleApiClient mGoogleApiClient;
 
 
         /**
@@ -139,6 +179,7 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
          * disable anti-aliasing in ambient mode.
          */
         boolean mLowBitAmbient;
+        Asset photoAsset;
 
         @Override
         public void onCreate(SurfaceHolder holder) {
@@ -179,6 +220,12 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
             mIconPaint.setColor(Color.BLUE);
             initFormats();
 
+            mGoogleApiClient = new GoogleApiClient.Builder(SunShineWatchFace.this)
+                    .addConnectionCallbacks(this)
+                    .addOnConnectionFailedListener(this)
+                    .addApi(Wearable.API)
+                    .build();
+
 
         }
 
@@ -211,8 +258,9 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
 
             if (visible) {
 
-
+                mGoogleApiClient.connect();
                 registerReceiver();
+                registerDataReceiver();
 
 
                 // Update time zone in case it changed while we weren't visible.
@@ -221,7 +269,13 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
                 mTime.clear(TimeZone.getDefault().getID());
                 mTime.setToNow();
             } else {
+                if (mGoogleApiClient != null && mGoogleApiClient.isConnected()) {
+                    Wearable.DataApi.removeListener(mGoogleApiClient, this);
+                    mGoogleApiClient.disconnect();
+                }
                 unregisterReceiver();
+                unregisterDataReceiver();
+
 
 
             }
@@ -246,6 +300,23 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
             }
             mRegisteredTimeZoneReceiver = false;
             SunShineWatchFace.this.unregisterReceiver(mTimeZoneReceiver);
+        }
+
+        private void registerDataReceiver(){
+            if(mRegisteredDataReceiver){
+                return;
+            }
+            mRegisteredDataReceiver = true;
+            IntentFilter filter = new IntentFilter(ACTION_RECEIVE);
+            SunShineWatchFace.this.registerReceiver(mDataReceiver, filter);
+        }
+
+        private void unregisterDataReceiver() {
+            if (!mRegisteredDataReceiver) {
+                return;
+            }
+            mRegisteredDataReceiver = false;
+            SunShineWatchFace.this.unregisterReceiver(mDataReceiver);
         }
 
         @Override
@@ -346,7 +417,7 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
             String text = mAmbient
                     ? String.format("%d:%02d", mTime.hour, mTime.minute)
                     : String.format("%d:%02d", mTime.hour, mTime.minute/*, mTime.second*/);
-            canvas.drawText(text, bounds.width()/2, mYOffset, mTextPaint);
+            canvas.drawText(text, bounds.width() / 2, mYOffset, mTextPaint);
             // Only render the day of week and date if there is no peek card, so they do not bleed
             // into each other in ambient mode.
             if (getPeekCardPosition().isEmpty()) {
@@ -356,7 +427,18 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
                         bounds.width() / 2, mYOffset + mLineHeight, mDatePaint);
                 canvas.drawLine(bounds.width() * 3 / 8, mYOffset + 2 * mLineHeight,
                         bounds.width() * 5 / 8, mYOffset + 2 * mLineHeight, mLinePaint);
-            //    canvas.drawBitmap(mIconBitmap,bounds.width()*3/8, mYOffset + 3 * mLineHeight, mIconPaint);
+                if(mIconBitmap != null) {
+                     /* Scale loaded background image (more efficient) if surface dimensions change. */
+                    float scale = ((float) bounds.width()/6) / (float) mIconBitmap.getWidth();
+
+                    mIconBitmap = Bitmap.createScaledBitmap(mIconBitmap,
+                            (int) (mIconBitmap.getWidth() * scale),
+                            (int) (mIconBitmap.getHeight() * scale), true);
+                    canvas.drawBitmap(mIconBitmap, bounds.width() * 1 / 8, mYOffset + 2 * mLineHeight, mIconPaint);
+                    //canvas.drawBitmap(mIconBitmap,0, mYOffset + 2 * mLineHeight, mIconPaint);
+                }
+               // canvas.drawText(high_temp,bounds.width() *6/8,mYOffset + 3 * mLineHeight, mHighPaint);
+               // canvas.drawText(low_temp, bounds.width() * 7 / 8, mYOffset + 3 * mLineHeight, mLowPaint);
 
 
 
@@ -394,6 +476,181 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
                 mUpdateTimeHandler.sendEmptyMessageDelayed(MSG_UPDATE_TIME, delayMs);
             }
         }
+
+
+        @Override  // GoogleApiClient.ConnectionCallbacks
+        public void onConnected(Bundle connectionHint) {
+           // if (Log.isLoggable(TAG, Log.DEBUG)) {
+            //    Log.d(TAG, "onConnected: " + connectionHint);
+           // }
+            Log.d(TAG, "onConnected: ");
+            Wearable.DataApi.addListener(mGoogleApiClient, Engine.this);
+            updateUiOnStartup();
+        }
+
+        private void updateUiOnStartup() {
+            new GetDataTask().execute();
+        }
+
+
+        @Override  // GoogleApiClient.ConnectionCallbacks
+        public void onConnectionSuspended(int cause) {
+            if (Log.isLoggable(TAG, Log.DEBUG)) {
+                Log.d(TAG, "onConnectionSuspended: " + cause);
+            }
+        }
+
+        @Override  // GoogleApiClient.OnConnectionFailedListener
+        public void onConnectionFailed(ConnectionResult result) {
+            if (Log.isLoggable(TAG, Log.DEBUG)) {
+                Log.d(TAG, "onConnectionFailed: " + result);
+            }
+        }
+
+        @Override
+        public void onDataChanged(DataEventBuffer dataEvents) {
+            Log.d(TAG, "onDataChanged(): " + dataEvents);
+
+            for (DataEvent event : dataEvents) {
+                if (event.getType() == DataEvent.TYPE_CHANGED) {
+                    String path = event.getDataItem().getUri().getPath();
+                    if (WearListenerService.IMAGE_PATH.equals(path)) {
+                        DataMapItem dataMapItem = DataMapItem.fromDataItem(event.getDataItem());
+                        Asset photoAsset = dataMapItem.getDataMap()
+                                .getAsset(WearListenerService.IMAGE_KEY);
+                        // Loads image on background thread.
+                        new LoadBitmapAsyncTask().execute(photoAsset);
+                        high_temp = dataMapItem.getDataMap()
+                                .getString(HIGH_KEY);
+                        low_temp = dataMapItem.getDataMap()
+                                .getString(LOW_KEY);
+
+                    } else if (WearListenerService.COUNT_PATH.equals(path)) {
+                        Log.d(TAG, "Data Changed for COUNT_PATH");
+                        Log.d("DataItem Changed", event.getDataItem().toString());
+                    } else {
+                        Log.d(TAG, "Unrecognized path: " + path);
+                    }
+
+                } else if (event.getType() == DataEvent.TYPE_DELETED) {
+                    Log.d("DataItem Deleted", event.getDataItem().toString());
+                } else {
+                    Log.d("Unknown data event type", "Type = " + event.getType());
+                }
+            }
+        }
+
+
+
+        private class LoadBitmapAsyncTask extends AsyncTask<Asset, Void, Bitmap> {
+
+            @Override
+            protected Bitmap doInBackground(Asset... params) {
+
+                if (params.length > 0) {
+
+                    Asset asset = params[0];
+
+                    InputStream assetInputStream = Wearable.DataApi.getFdForAsset(
+                            mGoogleApiClient, asset).await().getInputStream();
+
+                    if (assetInputStream == null) {
+                        Log.w(TAG, "Requested an unknown Asset.");
+                        return null;
+                    }
+                    return BitmapFactory.decodeStream(assetInputStream);
+
+                } else {
+                    Log.e(TAG, "Asset must be non-null");
+                    return null;
+                }
+            }
+
+            @Override
+            protected void onPostExecute(Bitmap bitmap) {
+
+                if (bitmap != null) {
+                    Log.d(TAG, "Setting icon image");
+                    mIconBitmap = Bitmap.createBitmap(bitmap);
+                   // mIconBitmap = Bitmap.createBitmap(bitmap,0,0,100,100);
+                }
+            }
+        }
+
+
+
+        private Collection<String> getNodes() {
+            HashSet<String> results = new HashSet<>();
+            NodeApi.GetConnectedNodesResult nodes =
+                    Wearable.NodeApi.getConnectedNodes(mGoogleApiClient).await();
+
+            for (Node node : nodes.getNodes()) {
+                results.add(node.getId());
+            }
+
+            return results;
+        }
+
+        private String getRemoteNodeId() {
+            HashSet<String> results = new HashSet<String>();
+            NodeApi.GetConnectedNodesResult nodesResult =
+                    Wearable.NodeApi.getConnectedNodes(mGoogleApiClient).await();
+            List<Node> nodes = nodesResult.getNodes();
+            if (nodes.size() > 0) {
+                return nodes.get(0).getId();
+            }
+            return null;
+        }
+
+        private class GetDataTask extends AsyncTask<Void, Void, Asset> {
+
+            @Override
+            protected Asset doInBackground(Void... args) {
+                String node = getRemoteNodeId();
+                if(node != null){
+                    Uri uri = new Uri.Builder()
+                            .scheme("wear")
+                            .path(IMAGE_PATH)
+                            .authority(node)
+                            .build();
+                    //Wearable.DataApi.getDataItem(mGoogleApiClient, uri).setResultCallback(SunShineWatchFace.this);
+
+                    DataApi.DataItemResult result = Wearable.DataApi.getDataItem(mGoogleApiClient,uri).await();
+
+                        String path = uri.getPath();
+                        if (WearListenerService.IMAGE_PATH.equals(path)) {
+                            DataMapItem dataItem = DataMapItem.fromDataItem(result.getDataItem());
+                            photoAsset = dataItem.getDataMap()
+                                    .getAsset(WearListenerService.IMAGE_KEY);
+                            high_temp = dataItem.getDataMap()
+                                    .getString(HIGH_KEY);
+                            low_temp = dataItem.getDataMap()
+                                    .getString(LOW_KEY);
+                            // Loads image on background thread.
+                            return photoAsset;
+
+
+                        } else if (WearListenerService.COUNT_PATH.equals(path)) {
+                            Log.d(TAG, "Data Changed for COUNT_PATH");
+                          //  Log.d("DataItem Changed", dataItem.toString());
+                        } else {
+                            Log.d(TAG, "Unrecognized path: " + path);
+                        }
+
+                }
+                return null;
+            }
+
+            @Override
+            protected void onPostExecute(Asset asset) {
+
+                if (asset != null) {
+                    Log.d(TAG, "Setting icon image");
+                    new LoadBitmapAsyncTask().execute(asset);
+                }
+            }
+        }
+
 
 
 

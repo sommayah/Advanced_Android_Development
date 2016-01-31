@@ -30,6 +30,7 @@ public class WearListenerService extends WearableListenerService {
     public static final String COUNT_PATH = "/count";
     public static final String IMAGE_PATH = "/image";
     public static final String IMAGE_KEY = "photo";
+    public static final String ACTION = "com.example.android.sunshine.app.DATA";
     GoogleApiClient mGoogleApiClient;
 
     @Override
@@ -101,10 +102,17 @@ public class WearListenerService extends WearableListenerService {
                 Log.d(TAG, "Setting icon image");
                 //  mAssetFragment.setBackgroundImage(bitmap);
                 Bitmap mIconBitmap = Bitmap.createBitmap(bitmap);
+                broadcastIntent();
             }
         }
     }
 
+    public void broadcastIntent(){
+        Intent intent = new Intent();
+        intent.setAction(ACTION);
+        intent.putExtra("testing", "HERE YOU GO");
+        sendBroadcast(intent);
+    }
 //    @Override
 //    public void onDataChanged(DataEventBuffer dataEvents) {
 //        LOGD(TAG, "onDataChanged: " + dataEvents);
