@@ -16,10 +16,7 @@
 package com.example.android.sunshine.app;
 
 import android.content.Intent;
-import android.content.IntentSender;
 import android.content.SharedPreferences;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
@@ -38,46 +35,20 @@ import com.example.android.sunshine.app.gcm.RegistrationIntentService;
 import com.example.android.sunshine.app.sync.SunshineSyncAdapter;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
-import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.ResultCallback;
-import com.google.android.gms.wearable.Asset;
-import com.google.android.gms.wearable.DataApi;
-import com.google.android.gms.wearable.DataEventBuffer;
-import com.google.android.gms.wearable.MessageApi;
-import com.google.android.gms.wearable.MessageEvent;
-import com.google.android.gms.wearable.PutDataMapRequest;
-import com.google.android.gms.wearable.PutDataRequest;
-import com.google.android.gms.wearable.Wearable;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.Date;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 
-public class MainActivity extends AppCompatActivity implements ForecastFragment.Callback, GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener, DataApi.DataListener, MessageApi.MessageListener {
+public class MainActivity extends AppCompatActivity implements ForecastFragment.Callback {
 
     private final String LOG_TAG = MainActivity.class.getSimpleName();
     private static final String DETAILFRAGMENT_TAG = "DFTAG";
     private final static int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
     public static final String SENT_TOKEN_TO_SERVER = "sentTokenToServer";
-    public GoogleApiClient mGoogleApiClient;
-
-
-
-    private static final int REQUEST_RESOLVE_ERROR = 1000;
-    private boolean mResolvingError = false;
     // Send DataItems.
     private ScheduledExecutorService mGeneratorExecutor;
     private ScheduledFuture<?> mDataItemGeneratorFuture;
 
-
-
-    private static final String IMAGE_PATH = "/image";
-    private static final String IMAGE_KEY = "photo";
-    private static final String HIGH_KEY = "high";
-    private static final String LOW_KEY = "low";
     private boolean mTwoPane;
     private String mLocation;
 
@@ -85,11 +56,7 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mLocation = Utility.getPreferredLocation(this);
-        mGoogleApiClient = new GoogleApiClient.Builder(this)
-                .addApi(Wearable.API)
-                .addConnectionCallbacks(this)
-                .addOnConnectionFailedListener(this)
-                .build();
+
         Uri contentUri = getIntent() != null ? getIntent().getData() : null;
 
         setContentView(R.layout.activity_main);
@@ -154,9 +121,7 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
     @Override
     protected void onStart() {
         super.onStart();
-        if (!mResolvingError) {
-            mGoogleApiClient.connect();
-        }
+
     }
 
 
@@ -168,11 +133,7 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
 
     @Override
     protected void onStop() {
-        if (!mResolvingError) {
-            Wearable.DataApi.removeListener(mGoogleApiClient, this);
-            Wearable.MessageApi.removeListener(mGoogleApiClient, this);
-            mGoogleApiClient.disconnect();
-        }
+
         super.onStop();
     }
 
@@ -247,6 +208,8 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
         }
     }
 
+
+
     /**
      * Check the device to make sure it has the Google Play Services APK. If
      * it doesn't, display a dialog that allows users to download the APK from
@@ -269,107 +232,4 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
     }
 
 
-    @Override
-    public void onConnected(Bundle bundle) {
-        mResolvingError = false;
-        Wearable.DataApi.addListener(mGoogleApiClient, this);
-        Wearable.MessageApi.addListener(mGoogleApiClient, this);
-        Bitmap mImageBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.art_clear);
-        if (null != mImageBitmap && mGoogleApiClient.isConnected()) {
-            sendPhoto(toAsset(mImageBitmap));
-        }
-
-    }
-
-    @Override
-    public void onConnectionSuspended(int i) {
-
-    }
-
-    @Override
-    public void onConnectionFailed(ConnectionResult result) {
-
-        if (mResolvingError) {
-            // Already attempting to resolve an error.
-            return;
-        } else if (result.hasResolution()) {
-            try {
-                mResolvingError = true;
-                result.startResolutionForResult(this, REQUEST_RESOLVE_ERROR);
-            } catch (IntentSender.SendIntentException e) {
-                // There was an error with the resolution intent. Try again.
-                mGoogleApiClient.connect();
-            }
-        } else {
-            Log.e(LOG_TAG, "Connection to Google API client has failed");
-            mResolvingError = false;
-            Wearable.DataApi.removeListener(mGoogleApiClient, this);
-            Wearable.MessageApi.removeListener(mGoogleApiClient, this);
-        }
-    }
-
-
-    /**
-     * Builds an {@link com.google.android.gms.wearable.Asset} from a bitmap. The image that we get
-     * back from the camera in "data" is a thumbnail size. Typically, your image should not exceed
-     * 320x320 and if you want to have zoom and parallax effect in your app, limit the size of your
-     * image to 640x400. Resize your image before transferring to your wearable device.
-     */
-    private static Asset toAsset(Bitmap bitmap) {
-        ByteArrayOutputStream byteStream = null;
-        try {
-            byteStream = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteStream);
-            return Asset.createFromBytes(byteStream.toByteArray());
-        } finally {
-            if (null != byteStream) {
-                try {
-                    byteStream.close();
-                } catch (IOException e) {
-                    // ignore
-                }
-            }
-        }
-    }
-    private void sendPhoto(Asset asset) {
-        PutDataMapRequest dataMap = PutDataMapRequest.create(IMAGE_PATH);
-        dataMap.getDataMap().putAsset(IMAGE_KEY, asset);
-        String high = "20";
-        String low = "10";
-        dataMap.getDataMap().putString(HIGH_KEY, high);
-        dataMap.getDataMap().putString(LOW_KEY, low);
-        dataMap.getDataMap().putLong("time", new Date().getTime());
-        PutDataRequest request = dataMap.asPutDataRequest();
-        request.setUrgent();
-
-        Wearable.DataApi.putDataItem(mGoogleApiClient, request)
-                .setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
-                    @Override
-                    public void onResult(DataApi.DataItemResult dataItemResult) {
-                        Log.d(LOG_TAG, "Sending image was successful: " + dataItemResult.getStatus()
-                                .isSuccess());
-                    }
-                });
-
-    }
-
-
-    @Override
-    public void onDataChanged(DataEventBuffer dataEventBuffer) {
-
-    }
-
-    @Override
-    public void onMessageReceived(MessageEvent messageEvent) {
-
-    }
-
-    /**
-     * As simple wrapper around Log.d
-     */
-    private static void LOGD(final String tag, String message) {
-        if (Log.isLoggable(tag, Log.DEBUG)) {
-            Log.d(tag, message);
-        }
-    }
 }

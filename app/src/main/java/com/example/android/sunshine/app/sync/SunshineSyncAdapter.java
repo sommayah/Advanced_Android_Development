@@ -36,6 +36,13 @@ import com.example.android.sunshine.app.R;
 import com.example.android.sunshine.app.Utility;
 import com.example.android.sunshine.app.data.WeatherContract;
 import com.example.android.sunshine.app.muzei.WeatherMuzeiSource;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.MessageApi;
+import com.google.android.gms.wearable.MessageEvent;
+import com.google.android.gms.wearable.Wearable;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -52,10 +59,16 @@ import java.net.URL;
 import java.util.Vector;
 import java.util.concurrent.ExecutionException;
 
-public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
+public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter implements  GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener, DataApi.DataListener, MessageApi.MessageListener {
     public final String LOG_TAG = SunshineSyncAdapter.class.getSimpleName();
     public static final String ACTION_DATA_UPDATED =
             "com.example.android.sunshine.app.ACTION_DATA_UPDATED";
+
+    public GoogleApiClient mGoogleApiClient;
+    private static final int REQUEST_RESOLVE_ERROR = 1000;
+    private boolean mResolvingError = false;
+
     // Interval at which to sync with the weather, in seconds.
     // 60 seconds (1 minute) * 180 = 3 hours
     public static final int SYNC_INTERVAL = 60 * 180;
@@ -77,6 +90,8 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
     private static final int INDEX_MIN_TEMP = 2;
     private static final int INDEX_SHORT_DESC = 3;
 
+
+
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({LOCATION_STATUS_OK, LOCATION_STATUS_SERVER_DOWN, LOCATION_STATUS_SERVER_INVALID,  LOCATION_STATUS_UNKNOWN, LOCATION_STATUS_INVALID})
     public @interface LocationStatus {}
@@ -89,6 +104,18 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
 
     public SunshineSyncAdapter(Context context, boolean autoInitialize) {
         super(context, autoInitialize);
+        mGoogleApiClient = new GoogleApiClient.Builder(context)
+                .addApi(Wearable.API)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .build();
+        if (!mResolvingError) {
+            mGoogleApiClient.connect();
+        }
+
+
+
+
     }
 
     @Override
@@ -203,6 +230,12 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
         }
         return;
     }
+
+//    if (!mResolvingError) {
+//        Wearable.DataApi.removeListener(mGoogleApiClient, this);
+//        Wearable.MessageApi.removeListener(mGoogleApiClient, this);
+//        mGoogleApiClient.disconnect();
+//    }
 
     /**
      * Take the String representing the complete forecast in JSON Format and
@@ -338,6 +371,19 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                 high = temperatureObject.getDouble(OWM_MAX);
                 low = temperatureObject.getDouble(OWM_MIN);
 
+                if(i ==0){ //first item send to watch
+                    String formattedMaxTemperature = Utility.formatTemperature(context, high);
+                    String formattedMinTemperature = Utility.formatTemperature(context, low);
+                    Resources resources = context.getResources();
+                    int artResourceId = Utility.getArtResourceForWeatherCondition(weatherId);
+                    if (mGoogleApiClient.isConnected()) {
+                        Utility.sendPhoto(Utility.toAsset(BitmapFactory.decodeResource(resources,artResourceId))
+                                ,String.valueOf(formattedMaxTemperature),String.valueOf(formattedMinTemperature),mGoogleApiClient);
+                        Log.d("sending pic",formattedMaxTemperature + formattedMinTemperature);
+                    }
+
+                }
+
                 ContentValues weatherValues = new ContentValues();
 
                 weatherValues.put(WeatherContract.WeatherEntry.COLUMN_LOC_KEY, locationId);
@@ -430,6 +476,9 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                     Resources resources = context.getResources();
                     int artResourceId = Utility.getArtResourceForWeatherCondition(weatherId);
                     String artUrl = Utility.getArtUrlForWeatherCondition(context, weatherId);
+
+
+
 
                     // On Honeycomb and higher devices, we can retrieve the size of the large icon
                     // Prior to that, we use a fixed size
@@ -658,4 +707,68 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
         spe.putInt(c.getString(R.string.pref_location_status_key), locationStatus);
         spe.commit();
     }
+
+    @Override
+    public void onConnected(Bundle bundle) {
+        mResolvingError = false;
+        Wearable.DataApi.addListener(mGoogleApiClient, this);
+        Wearable.MessageApi.addListener(mGoogleApiClient, this);
+//        Bitmap mImageBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.art_clear);
+//        if (null != mImageBitmap && mGoogleApiClient.isConnected()) {
+//            Utility.sendPhoto(Utility.toAsset(mImageBitmap), "20", "10", mGoogleApiClient);
+//        }
+
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+
+    }
+
+    @Override
+    public void onConnectionFailed(ConnectionResult result) {
+
+        if (mResolvingError) {
+            // Already attempting to resolve an error.
+            return;
+        } else if (result.hasResolution()) {
+//            try {
+//                mResolvingError = true;
+//                result.startResolutionForResult(this, REQUEST_RESOLVE_ERROR);
+//            } catch (IntentSender.SendIntentException e) {
+//                // There was an error with the resolution intent. Try again.
+//                mGoogleApiClient.connect();
+//            }
+        } else {
+            Log.e("in SyncAdapter", "Connection to Google API client has failed");
+            mResolvingError = false;
+            Wearable.DataApi.removeListener(mGoogleApiClient, this);
+            Wearable.MessageApi.removeListener(mGoogleApiClient, this);
+        }
+    }
+
+
+
+
+
+    @Override
+    public void onDataChanged(DataEventBuffer dataEventBuffer) {
+
+    }
+
+    @Override
+    public void onMessageReceived(MessageEvent messageEvent) {
+
+    }
+
+    /**
+     * As simple wrapper around Log.d
+     */
+    private static void LOGD(final String tag, String message) {
+        if (Log.isLoggable(tag, Log.DEBUG)) {
+            Log.d(tag, message);
+        }
+    }
+
+
 }

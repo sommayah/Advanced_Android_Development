@@ -17,21 +17,46 @@ package com.example.android.sunshine.app;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.text.format.Time;
+import android.util.Log;
 
 import com.example.android.sunshine.app.sync.SunshineSyncAdapter;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.wearable.Asset;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.MessageApi;
+import com.google.android.gms.wearable.MessageEvent;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
+import com.google.android.gms.wearable.Wearable;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
-public class Utility {
+public class Utility implements  GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener, DataApi.DataListener, MessageApi.MessageListener{
     // We'll default our latlong to 0. Yay, "Earth!"
     public static float DEFAULT_LATLONG = 0F;
+    public static final String IMAGE_PATH = "/image";
+    public static final String IMAGE_KEY = "photo";
+    public static final String HIGH_KEY = "high";
+    public static final String LOW_KEY = "low";
+
+    public static GoogleApiClient mGoogleApiClient;
+    private static final int REQUEST_RESOLVE_ERROR = 1000;
+    private static boolean mResolvingError = false;
 
     public static boolean isLocationLatLonAvailable(Context context) {
         SharedPreferences prefs
@@ -598,5 +623,117 @@ public class Utility {
         SharedPreferences.Editor spe = sp.edit();
         spe.putInt(c.getString(R.string.pref_location_status_key), SunshineSyncAdapter.LOCATION_STATUS_UNKNOWN);
         spe.apply();
+    }
+
+    static public void sendDataToWearable(Context c){
+//        mGoogleApiClient = new GoogleApiClient.Builder(c)
+//                .addApi(Wearable.API)
+//                .addConnectionCallbacks(c)
+//                .addOnConnectionFailedListener(c)
+//                .build();
+//        if (!mResolvingError) {
+//            mGoogleApiClient.connect();
+//        }
+
+
+    }
+
+//    if (!mResolvingError) {
+//        Wearable.DataApi.removeListener(mGoogleApiClient, this);
+//        Wearable.MessageApi.removeListener(mGoogleApiClient, this);
+//        mGoogleApiClient.disconnect();
+//    }
+
+    /**
+     * Builds an {@link com.google.android.gms.wearable.Asset} from a bitmap. The image that we get
+     * back from the camera in "data" is a thumbnail size. Typically, your image should not exceed
+     * 320x320 and if you want to have zoom and parallax effect in your app, limit the size of your
+     * image to 640x400. Resize your image before transferring to your wearable device.
+     */
+    public static Asset toAsset(Bitmap bitmap) {
+        ByteArrayOutputStream byteStream = null;
+        try {
+            byteStream = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteStream);
+            return Asset.createFromBytes(byteStream.toByteArray());
+        } finally {
+            if (null != byteStream) {
+                try {
+                    byteStream.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
+        }
+    }
+    public static void sendPhoto(Asset asset,String high,String low,GoogleApiClient client) {
+        PutDataMapRequest dataMap = PutDataMapRequest.create(Utility.IMAGE_PATH);
+        dataMap.getDataMap().putAsset(Utility.IMAGE_KEY, asset);
+        dataMap.getDataMap().putString(Utility.HIGH_KEY, high);
+        dataMap.getDataMap().putString(Utility.LOW_KEY, low);
+        dataMap.getDataMap().putLong("time", new Date().getTime());
+        PutDataRequest request = dataMap.asPutDataRequest();
+        request.setUrgent();
+
+        Wearable.DataApi.putDataItem(client, request)
+                .setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
+                    @Override
+                    public void onResult(DataApi.DataItemResult dataItemResult) {
+                        Log.d("Sending Image", "Sending image was successful: " + dataItemResult.getStatus()
+                                .isSuccess());
+                    }
+                });
+
+    }
+
+
+    @Override
+    public void onConnected(Bundle bundle) {
+        mResolvingError = false;
+        Wearable.DataApi.addListener(mGoogleApiClient, this);
+        Wearable.MessageApi.addListener(mGoogleApiClient, this);
+
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+
+
+    }
+
+
+
+
+    @Override
+    public void onDataChanged(DataEventBuffer dataEventBuffer) {
+
+    }
+
+    @Override
+    public void onMessageReceived(MessageEvent messageEvent) {
+
+    }
+
+    @Override
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+
+        if (mResolvingError) {
+            // Already attempting to resolve an error.
+            return;
+        } else if (connectionResult.hasResolution()) {
+//            try {
+//                mResolvingError = true;
+//                result.startResolutionForResult(this, REQUEST_RESOLVE_ERROR);
+//            } catch (IntentSender.SendIntentException e) {
+//                // There was an error with the resolution intent. Try again.
+//                mGoogleApiClient.connect();
+//            }
+        } else {
+            Log.e("connecting", "Connection to Google API client has failed");
+            mResolvingError = false;
+            Wearable.DataApi.removeListener(mGoogleApiClient, this);
+            Wearable.MessageApi.removeListener(mGoogleApiClient, this);
+        }
+
     }
 }
