@@ -18,6 +18,10 @@ package com.example.android.sunshine.app;
 import android.annotation.TargetApi;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Resources;
+import android.database.Cursor;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.preference.ListPreference;
@@ -29,11 +33,19 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
+
 import com.example.android.sunshine.app.data.WeatherContract;
 import com.example.android.sunshine.app.sync.SunshineSyncAdapter;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.places.Place;
 import com.google.android.gms.location.places.ui.PlacePicker;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.MessageApi;
+import com.google.android.gms.wearable.MessageEvent;
+import com.google.android.gms.wearable.Wearable;
 
 /**
  * A {@link PreferenceActivity} that presents a set of application settings.
@@ -44,9 +56,25 @@ import com.google.android.gms.maps.model.LatLng;
  * API Guide</a> for more information on developing a Settings UI.
  */
 public class SettingsActivity extends PreferenceActivity
-        implements Preference.OnPreferenceChangeListener, SharedPreferences.OnSharedPreferenceChangeListener {
+        implements Preference.OnPreferenceChangeListener, SharedPreferences.OnSharedPreferenceChangeListener, GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener, DataApi.DataListener, MessageApi.MessageListener {
     protected final static int PLACE_PICKER_REQUEST = 9090;
     private ImageView mAttribution;
+
+    public GoogleApiClient mGoogleApiClient;
+    private static final int REQUEST_RESOLVE_ERROR = 1000;
+    private boolean mResolvingError = false;
+
+    private static final String[] NOTIFY_WEATHER_PROJECTION = new String[] {
+            WeatherContract.WeatherEntry.COLUMN_WEATHER_ID,
+            WeatherContract.WeatherEntry.COLUMN_MAX_TEMP,
+            WeatherContract.WeatherEntry.COLUMN_MIN_TEMP,
+    };
+
+    // these indices must match the projection
+    private static final int INDEX_WEATHER_ID = 0;
+    private static final int INDEX_MAX_TEMP = 1;
+    private static final int INDEX_MIN_TEMP = 2;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -72,6 +100,12 @@ public class SettingsActivity extends PreferenceActivity
 
             setListFooter(mAttribution);
         }
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .addApi(Wearable.API)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .build();
+
     }
 
     // Registers a shared preference change listener that gets notified when preferences change
@@ -79,6 +113,9 @@ public class SettingsActivity extends PreferenceActivity
     protected void onResume() {
         SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
         sp.registerOnSharedPreferenceChangeListener(this);
+        if (!mResolvingError) {
+            mGoogleApiClient.connect();
+        }
         super.onResume();
     }
 
@@ -87,6 +124,11 @@ public class SettingsActivity extends PreferenceActivity
     protected void onPause() {
         SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
         sp.unregisterOnSharedPreferenceChangeListener(this);
+        if (!mResolvingError) {
+            Wearable.DataApi.removeListener(mGoogleApiClient, this);
+            Wearable.MessageApi.removeListener(mGoogleApiClient, this);
+            mGoogleApiClient.disconnect();
+    }
         super.onPause();
     }
 
@@ -171,6 +213,8 @@ public class SettingsActivity extends PreferenceActivity
         } else if ( key.equals(getString(R.string.pref_units_key)) ) {
             // units have changed. update lists of weather entries accordingly
             getContentResolver().notifyChange(WeatherContract.WeatherEntry.CONTENT_URI, null);
+            sendNewTemperaturesToWatch();
+            //sendNewArtToWatch();
         } else if ( key.equals(getString(R.string.pref_location_status_key)) ) {
             // our location status has changed.  Update the summary accordingly
             Preference locationPreference = findPreference(getString(R.string.pref_location_key));
@@ -178,8 +222,54 @@ public class SettingsActivity extends PreferenceActivity
         } else if ( key.equals(getString(R.string.pref_art_pack_key)) ) {
             // art pack have changed. update lists of weather entries accordingly
             getContentResolver().notifyChange(WeatherContract.WeatherEntry.CONTENT_URI, null);
+            sendNewArtToWatch();
         }
     }
+
+    private void sendNewArtToWatch() {
+        String locationQuery = Utility.getPreferredLocation(this);
+        Uri weatherUri = WeatherContract.WeatherEntry.buildWeatherLocationWithDate(locationQuery, System.currentTimeMillis());
+        Cursor cursor = getContentResolver()
+                .query(weatherUri, NOTIFY_WEATHER_PROJECTION, null, null, null);
+
+        if (cursor.moveToFirst()) {
+            int weatherId = cursor.getInt(INDEX_WEATHER_ID);
+            double high = cursor.getDouble(INDEX_MAX_TEMP);
+            double low = cursor.getDouble(INDEX_MIN_TEMP);
+            Resources resources = getResources();
+            int artResourceId = Utility.getArtResourceForWeatherCondition(weatherId);
+            String formattedMaxTemperature = Utility.formatTemperature(this, high);
+            String formattedMinTemperature = Utility.formatTemperature(this, low);
+            if (mGoogleApiClient.isConnected()) {
+                Utility.sendPhoto(Utility.toAsset(BitmapFactory.decodeResource(resources, artResourceId))
+                        ,String.valueOf(formattedMaxTemperature),String.valueOf(formattedMinTemperature),mGoogleApiClient);
+                Log.d("sending pic",formattedMaxTemperature + formattedMinTemperature);
+            }
+
+        }
+    }
+
+    private void sendNewTemperaturesToWatch(){
+        String locationQuery = Utility.getPreferredLocation(this);
+        Uri weatherUri = WeatherContract.WeatherEntry.buildWeatherLocationWithDate(locationQuery, System.currentTimeMillis());
+        Cursor cursor = getContentResolver()
+                .query(weatherUri, NOTIFY_WEATHER_PROJECTION, null, null, null);
+
+        if (cursor.moveToFirst()) {
+            double high = cursor.getDouble(INDEX_MAX_TEMP);
+            double low = cursor.getDouble(INDEX_MIN_TEMP);
+            String formattedMaxTemperature = Utility.formatTemperature(this, high);
+            String formattedMinTemperature = Utility.formatTemperature(this, low);
+            if (mGoogleApiClient.isConnected()) {
+                Utility.sendTemperatures(formattedMaxTemperature,formattedMinTemperature,mGoogleApiClient);
+                Log.d("sending temp",formattedMaxTemperature + formattedMinTemperature);
+            }
+
+        }
+
+    }
+
+
 
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
     @Override
@@ -241,4 +331,54 @@ public class SettingsActivity extends PreferenceActivity
             super.onActivityResult(requestCode, resultCode, data);
         }
     }
+
+    @Override
+    public void onConnected(Bundle bundle) {
+        mResolvingError = false;
+        Wearable.DataApi.addListener(mGoogleApiClient, this);
+        Wearable.MessageApi.addListener(mGoogleApiClient, this);
+
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+
+    }
+
+    @Override
+    public void onConnectionFailed(ConnectionResult result) {
+
+        if (mResolvingError) {
+            // Already attempting to resolve an error.
+            return;
+        } else if (result.hasResolution()) {
+//            try {
+//                mResolvingError = true;
+//                result.startResolutionForResult(this, REQUEST_RESOLVE_ERROR);
+//            } catch (IntentSender.SendIntentException e) {
+//                // There was an error with the resolution intent. Try again.
+//                mGoogleApiClient.connect();
+//            }
+        } else {
+            Log.e("in SyncAdapter", "Connection to Google API client has failed");
+            mResolvingError = false;
+            Wearable.DataApi.removeListener(mGoogleApiClient, this);
+            Wearable.MessageApi.removeListener(mGoogleApiClient, this);
+        }
+    }
+
+
+
+
+
+    @Override
+    public void onDataChanged(DataEventBuffer dataEventBuffer) {
+
+    }
+
+    @Override
+    public void onMessageReceived(MessageEvent messageEvent) {
+
+    }
+
 }

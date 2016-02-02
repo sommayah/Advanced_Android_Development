@@ -114,8 +114,6 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter implements 
         }
 
 
-
-
     }
 
     @Override
@@ -713,10 +711,6 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter implements 
         mResolvingError = false;
         Wearable.DataApi.addListener(mGoogleApiClient, this);
         Wearable.MessageApi.addListener(mGoogleApiClient, this);
-//        Bitmap mImageBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.art_clear);
-//        if (null != mImageBitmap && mGoogleApiClient.isConnected()) {
-//            Utility.sendPhoto(Utility.toAsset(mImageBitmap), "20", "10", mGoogleApiClient);
-//        }
 
     }
 
@@ -761,14 +755,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter implements 
 
     }
 
-    /**
-     * As simple wrapper around Log.d
-     */
-    private static void LOGD(final String tag, String message) {
-        if (Log.isLoggable(tag, Log.DEBUG)) {
-            Log.d(tag, message);
-        }
-    }
+
 
 
 }

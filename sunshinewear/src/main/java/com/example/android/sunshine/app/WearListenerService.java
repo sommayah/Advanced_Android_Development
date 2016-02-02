@@ -29,6 +29,7 @@ public class WearListenerService extends WearableListenerService {
     private static final String DATA_ITEM_RECEIVED_PATH = "/data-item-received";
     public static final String COUNT_PATH = "/count";
     public static final String IMAGE_PATH = "/image";
+    public static final String TEMP_PATH = "/temp";
     public static final String IMAGE_KEY = "photo";
     public static final String ACTION = "com.example.android.sunshine.app.DATA";
     GoogleApiClient mGoogleApiClient;
@@ -56,9 +57,7 @@ public class WearListenerService extends WearableListenerService {
                     // Loads image on background thread.
                     new LoadBitmapAsyncTask().execute(photoAsset);
 
-                } else if (WearListenerService.COUNT_PATH.equals(path)) {
-                    Log.d(TAG, "Data Changed for COUNT_PATH");
-                    Log.d("DataItem Changed", event.getDataItem().toString());
+
                 } else {
                     Log.d(TAG, "Unrecognized path: " + path);
                 }

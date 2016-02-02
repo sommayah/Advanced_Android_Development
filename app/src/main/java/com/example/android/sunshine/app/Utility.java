@@ -50,6 +50,7 @@ public class Utility implements  GoogleApiClient.ConnectionCallbacks,
     // We'll default our latlong to 0. Yay, "Earth!"
     public static float DEFAULT_LATLONG = 0F;
     public static final String IMAGE_PATH = "/image";
+    public static final String TEMP_PATH = "/temp";
     public static final String IMAGE_KEY = "photo";
     public static final String HIGH_KEY = "high";
     public static final String LOW_KEY = "low";
@@ -680,6 +681,25 @@ public class Utility implements  GoogleApiClient.ConnectionCallbacks,
                     @Override
                     public void onResult(DataApi.DataItemResult dataItemResult) {
                         Log.d("Sending Image", "Sending image was successful: " + dataItemResult.getStatus()
+                                .isSuccess());
+                    }
+                });
+
+    }
+
+    public static void sendTemperatures(String high,String low,GoogleApiClient client) {
+        PutDataMapRequest dataMap = PutDataMapRequest.create(Utility.TEMP_PATH);
+        dataMap.getDataMap().putString(Utility.HIGH_KEY, high);
+        dataMap.getDataMap().putString(Utility.LOW_KEY, low);
+        dataMap.getDataMap().putLong("time", new Date().getTime());
+        PutDataRequest request = dataMap.asPutDataRequest();
+        request.setUrgent();
+
+        Wearable.DataApi.putDataItem(client, request)
+                .setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
+                    @Override
+                    public void onResult(DataApi.DataItemResult dataItemResult) {
+                        Log.d("Sending Temp", "Sending temperatures was successful: " + dataItemResult.getStatus()
                                 .isSuccess());
                     }
                 });

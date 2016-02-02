@@ -72,6 +72,7 @@ import java.util.concurrent.TimeUnit;
 public class SunShineWatchFace extends CanvasWatchFaceService {
     private static final String TAG = "SunShineWatchFace";
     public static final String IMAGE_PATH = "/image";
+    public static final String TEMP_PATH = "/temp";
     public static final String IMAGE_KEY = "photo";
     private static final String HIGH_KEY = "high";
     private static final String LOW_KEY = "low";
@@ -128,7 +129,6 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
             GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener{
         final Handler mUpdateTimeHandler = new EngineHandler(this);
         boolean mRegisteredTimeZoneReceiver = false;
-        boolean mRegisteredDataReceiver = false;
         Paint mBackgroundPaint;
         Paint mLinePaint;
         Paint mTextPaint;
@@ -158,15 +158,7 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
             }
         };
 
-        final BroadcastReceiver mDataReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                //get data here
-                Log.d(TAG, intent.getStringExtra("testing"));
-                Log.d(TAG, "in on receive");
 
-            }
-        };
         int mTapCount;
 
         float mXOffset;
@@ -260,7 +252,7 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
 
                 mGoogleApiClient.connect();
                 registerReceiver();
-                registerDataReceiver();
+
 
 
                 // Update time zone in case it changed while we weren't visible.
@@ -274,7 +266,7 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
                     mGoogleApiClient.disconnect();
                 }
                 unregisterReceiver();
-                unregisterDataReceiver();
+
 
 
 
@@ -302,22 +294,7 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
             SunShineWatchFace.this.unregisterReceiver(mTimeZoneReceiver);
         }
 
-        private void registerDataReceiver(){
-            if(mRegisteredDataReceiver){
-                return;
-            }
-            mRegisteredDataReceiver = true;
-            IntentFilter filter = new IntentFilter(ACTION_RECEIVE);
-            SunShineWatchFace.this.registerReceiver(mDataReceiver, filter);
-        }
 
-        private void unregisterDataReceiver() {
-            if (!mRegisteredDataReceiver) {
-                return;
-            }
-            mRegisteredDataReceiver = false;
-            SunShineWatchFace.this.unregisterReceiver(mDataReceiver);
-        }
 
         @Override
         public void onApplyWindowInsets(WindowInsets insets) {
@@ -516,10 +493,10 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
             for (DataEvent event : dataEvents) {
                 if (event.getType() == DataEvent.TYPE_CHANGED) {
                     String path = event.getDataItem().getUri().getPath();
-                    if (WearListenerService.IMAGE_PATH.equals(path)) {
+                    if (IMAGE_PATH.equals(path)) {
                         DataMapItem dataMapItem = DataMapItem.fromDataItem(event.getDataItem());
                         Asset photoAsset = dataMapItem.getDataMap()
-                                .getAsset(WearListenerService.IMAGE_KEY);
+                                .getAsset(IMAGE_KEY);
                         high_temp = dataMapItem.getDataMap()
                                 .getString(HIGH_KEY);
                         low_temp = dataMapItem.getDataMap()
@@ -528,9 +505,13 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
                         new LoadBitmapAsyncTask().execute(photoAsset);
 
 
-                    } else if (WearListenerService.COUNT_PATH.equals(path)) {
-                        Log.d(TAG, "Data Changed for COUNT_PATH");
-                        Log.d("DataItem Changed", event.getDataItem().toString());
+                    } else if (TEMP_PATH.equals(path)) {
+                        Log.d(TAG, "Data Changed for TEMP_PATH");
+                        DataMapItem dataMapItem = DataMapItem.fromDataItem(event.getDataItem());
+                        high_temp = dataMapItem.getDataMap()
+                                .getString(HIGH_KEY);
+                        low_temp = dataMapItem.getDataMap()
+                                .getString(LOW_KEY);
                     } else {
                         Log.d(TAG, "Unrecognized path: " + path);
                     }
@@ -621,10 +602,10 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
                     DataApi.DataItemResult result = Wearable.DataApi.getDataItem(mGoogleApiClient,uri).await();
 
                         String path = uri.getPath();
-                        if (WearListenerService.IMAGE_PATH.equals(path)) {
+                        if (IMAGE_PATH.equals(path)) {
                             DataMapItem dataItem = DataMapItem.fromDataItem(result.getDataItem());
                             photoAsset = dataItem.getDataMap()
-                                    .getAsset(WearListenerService.IMAGE_KEY);
+                                    .getAsset(IMAGE_KEY);
                             high_temp = dataItem.getDataMap()
                                     .getString(HIGH_KEY);
                             low_temp = dataItem.getDataMap()
@@ -633,9 +614,13 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
                             return photoAsset;
 
 
-                        } else if (WearListenerService.COUNT_PATH.equals(path)) {
-                            Log.d(TAG, "Data Changed for COUNT_PATH");
-                          //  Log.d("DataItem Changed", dataItem.toString());
+                        } else if (TEMP_PATH.equals(path)) {
+                            Log.d(TAG, "Data Changed for TEMP_PATH");
+                            DataMapItem dataMapItem = DataMapItem.fromDataItem(result.getDataItem());
+                            high_temp = dataMapItem.getDataMap()
+                                    .getString(HIGH_KEY);
+                            low_temp = dataMapItem.getDataMap()
+                                    .getString(LOW_KEY);
                         } else {
                             Log.d(TAG, "Unrecognized path: " + path);
                         }
