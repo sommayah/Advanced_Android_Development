@@ -404,7 +404,7 @@ public class SunShineWatchFace extends CanvasWatchFaceService {
                         bounds.width() / 2, mYOffset + mLineHeight, mDatePaint);
                 canvas.drawLine(bounds.width() * 3 / 8, mYOffset + 2 * mLineHeight,
                         bounds.width() * 5 / 8, mYOffset + 2 * mLineHeight, mLinePaint);
-                if(mIconBitmap != null) {
+                if(mIconBitmap != null && !isInAmbientMode()) {
                      /* Scale loaded background image (more efficient) if surface dimensions change. */
                     float scale = ((float) bounds.width()/6) / (float) mIconBitmap.getWidth();
 
